@@ -14,63 +14,73 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
+    serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+    }
 });
 
 async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    const jobsCollection = client.db('jobHyper').collection("jobs");
-    const applicationsCollection = client.db("jobHyper").collection("applicationData")
+    try {
+        // Connect the client to the server	(optional starting in v4.7)
+        await client.connect();
+        const jobsCollection = client.db('jobHyper').collection("jobs");
+        const applicationsCollection = client.db("jobHyper").collection("applicationData")
 
-    app.get('/jobs', async(req,res)=>{
-        const result = await jobsCollection.find().toArray();
-        res.send(result)
-    })
-    app.get("/singlejob/:id", async(req,res)=>{
-        const id = req.params.id;
-        const query = {_id: new ObjectId(id)};
-        const result = await jobsCollection.findOne(query);
-        res.send(result)
-    })
+        app.get('/jobs', async (req, res) => {
+            const result = await jobsCollection.find().toArray();
+            res.send(result)
+        })
+        app.get("/singlejob/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await jobsCollection.findOne(query);
+            res.send(result)
+        })
 
-    // application related api
-    app.post('/applications', async(req,res)=>{
-        const applicationsData = req.body;
-        const result = await applicationsCollection.insertOne(applicationsData);
-        res.send(result);
-    })
+        // application related api
+        app.post('/applications', async (req, res) => {
+            const applicationsData = req.body;
+            const result = await applicationsCollection.insertOne(applicationsData);
+            res.send(result);
+        })
 
-    app.get("/myapplication",async(req,res)=>{
-        const email = req.query.email;
-        const query = {
-            applicant: email
-        }
-        const result = await applicationsCollection.find(query).toArray();
-        res.send(result)
-    })
+        app.get("/myapplication", async (req, res) => {
+            const email = req.query.email;
+            const query = {
+                applicant: email
+            }
+            const result = await applicationsCollection.find(query).toArray();
+            // bad way to aggregate with another db
+            for (let application of result) {
+                const jobId = application.jobId;
+                const query = {_id: new ObjectId(jobId)};
+                const job = await jobsCollection.findOne(query);
+                application.company = job.company;
+                application.title = job.title;
+                application.company_logo = job.company_logo;
+                application.location = job.location
+            }
+            res.send(result)
+        })
 
 
 
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
+        // Send a ping to confirm a successful connection
+        await client.db("admin").command({ ping: 1 });
+        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    } finally {
+        // Ensures that the client will close when you finish/error
+        // await client.close();
+    }
 }
 run().catch(console.dir);
 
-app.get("/", (req,res)=>{
+app.get("/", (req, res) => {
     res.send("server is running wow")
 })
 
-app.listen(port, ()=>{
+app.listen(port, () => {
     console.log("app is running on", port)
 })
