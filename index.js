@@ -38,6 +38,12 @@ async function run() {
             const result = await jobsCollection.insertOne(newJob);
             res.send(result);
         })
+        app.get("/mypostedjobs", async(req,res)=>{
+            const email = req.query.email;
+            const query = {hr_email:email};
+            const result = await jobsCollection.find(query).toArray();
+            res.send(result);
+        })
 
         app.get("/singlejob/:id", async (req, res) => {
             const id = req.params.id;
