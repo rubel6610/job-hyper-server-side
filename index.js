@@ -1,13 +1,21 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.port || 3000;
 const app = express();
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster1.zbkgllm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster1`;
 
@@ -19,6 +27,22 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token;
+ if(!token){
+  return res.status(401).send({message:"unauthorized access"})
+ }
+ jwt.verify(token, process.env.secret_key,(error,decode)=>{
+  if(error){
+    return res.status(401).send({message:"unauthorized"})
+  }
+  req.decode = decode;
+ 
+ }) 
+ next();
+ 
+
+};
 
 async function run() {
   try {
@@ -39,8 +63,11 @@ async function run() {
       const result = await jobsCollection.insertOne(newJob);
       res.send(result);
     });
-    app.get("/mypostedjobs", async (req, res) => {
+    app.get("/mypostedjobs", verifyToken, async (req, res) => {
       const email = req.query.email;
+      if(req.decode.email !== email){
+        return res.status(403).send({message:"forbidded"})
+      }
       const query = { hr_email: email };
       const result = await jobsCollection.find(query).toArray();
       res.send(result);
@@ -95,6 +122,18 @@ async function run() {
       };
       const result = await applicationsCollection.updateOne(filter, updatedDoc);
       res.send(result);
+    });
+    // jsonwebtoken
+    app.post("/jwt", async (req, res) => {
+      const userEmail = req.body;
+      const token = await jwt.sign(userEmail, process.env.secret_key, {
+        expiresIn: "1h",
+      });
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: false,
+      });
+     
     });
 
     // Send a ping to confirm a successful connection
